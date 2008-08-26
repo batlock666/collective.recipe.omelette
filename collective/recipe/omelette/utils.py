@@ -23,6 +23,8 @@ if WIN32:
         raise EnvironmentError, "Junction.exe not found in path.  Collective.recipe.omelette cannot continue.  See omelette's README.txt."
     
     def symlink(src, dest):
+        if '/zc' in dest:
+            import pdb ; pdb.set_trace( )
         cmd = "%s %s %s" % (JUNCTION, os.path.abspath(dest), os.path.abspath(src),)
         _run(cmd)
 

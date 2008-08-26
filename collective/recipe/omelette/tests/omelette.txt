@@ -30,9 +30,11 @@ Now we have everything linked together in one place, pointing at the real locati
     d omelette
     >>> ls('parts/omelette')
     d Products
-    - __init__.py
+    - easy_install.py
     d omelettetests
+    - pkg_resources.py
     d setuptools
+    - site.py
     d subpackage
     >>> ls('parts/omelette/omelettetests/egg1')
     - __init__.py
@@ -166,5 +168,7 @@ Or ignore all development eggs::
     ... """)
     >>> print system(buildout + ' -q')
     >>> ls('parts/omelette')
-    - __init__.py
+    - easy_install.py
+    - pkg_resources.py
     d setuptools
+    - site.py
