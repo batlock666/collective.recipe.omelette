@@ -140,7 +140,7 @@ class Recipe(object):
                         if not os.path.exists(link_location):
                             symlink(package_location, link_location)
                         else:
-                            self.logger.warn("Warning: (While processing egg %s) Link already exists.  Skipping." % project_name)
+                            self.logger.warn("Warning: (While processing egg %s) Link already exists (%s -> %s).  Skipping." % (project_name, package_location, link_location))
                             continue
                     # parts = project_name.split('.')
                     # namespaces = parts[:-1]
