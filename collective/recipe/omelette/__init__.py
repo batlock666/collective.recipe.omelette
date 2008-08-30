@@ -94,6 +94,7 @@ class Recipe(object):
                         for part in line.split('.'):
                             ns = ns.setdefault(part, {})
                     top_level = list(dist._get_metadata('top_level.txt'))
+                    native_libs = list(dist._get_metadata('native_libs.txt'))
                     def create_namespaces(namespaces, ns_base=()):
                         for k, v in namespaces.iteritems():
                             ns_parts = ns_base + (k,)
@@ -125,9 +126,12 @@ class Recipe(object):
                         else:
                             package_location = os.path.join(dist.location, package_name)
                             link_location = os.path.join(location, package_name)
+                            # check for single python module
                             if not os.path.exists(package_location):
                                 package_location = os.path.join(dist.location, package_name+".py")
                                 link_location = os.path.join(location, package_name+".py")
+                            # check for native libs
+                            # XXX - this should use native_libs from above
                             if not os.path.exists(package_location):
                                 package_location = os.path.join(dist.location, package_name+".so")
                                 link_location = os.path.join(location, package_name+".so")
