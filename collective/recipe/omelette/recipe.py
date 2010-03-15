@@ -24,6 +24,7 @@ import sys
 import shutil
 import logging
 import zc.recipe.egg
+
 from collective.recipe.omelette.utils import (islink, makedirs, rmitem,
     rmtree, symlink, unlink, WIN32)
 
@@ -31,6 +32,7 @@ def uninstall(name, options):
     location = options.get('location')
     if os.path.exists(location):
         rmtree(location)
+
 
 class Omelette(object):
     """zc.buildout recipe"""
@@ -72,6 +74,48 @@ class Omelette(object):
         self.packages += [l.split()
             for l in options.get('packages', '').splitlines()
             if l.strip()]
+
+    def _build_namespace_tree(self, dist):
+        namespaces = {}
+        for line in dist._get_metadata('namespace_packages.txt'):
+            ns = namespaces
+            for part in line.split('.'):
+                ns = ns.setdefault(part, {})
+        def create_namespace(pkg_location, namespace, ns_base=()):
+            for k, v in namespaces.iteritems():
+                ns_parts = ns_base + (k,)
+                target_dir = os.path.join(self.location, *ns_parts)
+                # 1. Target namespace level has been already been created?
+                if not os.path.exists(target_dir):
+                    # Has not been previously created?
+                    if not makedirs(target_dir, is_namespace=True):
+                        continue
+                # 2. Is namespace of more than one level?
+                if len(v) > 0:
+                    create_namespaces(pkg_location, v, ns_parts)
+                # 3. end of the line, packages from here on out
+                else:
+                    egg_ns_dir = os.path.join(pkg_location, *ns_parts)
+                    # Check if it's a binary (rotten) egg and pitch it
+                    if not os.path.isdir(egg_ns_dir):
+                        raise Exception()
+                    dirs = os.listdir(egg_ns_dir)
+                    for name in dirs:
+                        if name.startswith('.'):
+                            continue
+                        name_parts = ns_parts + (name,)
+                        src = os.path.join(dist.location, *name_parts)
+                        dst = os.path.join(location, *name_parts)
+                        if os.path.exists(dst):
+                            continue
+                        try:
+                            self.action(src, dst)
+                        except OSError:
+                            pass
+        create_namespace(dist.location, namespaces)
+
+    def utensil(self, src, dst, exclude=None):
+        raise NotImplementedError()
 
     def cook(self):
         raise NotImplementedError()
@@ -137,7 +181,7 @@ class FluffyOmelette(Omelette):
             self.logger.warn("Warning: Product directory %s not found.  "
                 "Skipping." % package_dir)
 
-    def _create_namespaces(self, dist, namespaces, ns_base=()):
+    def _crack_shell(self, dist, namespaces, ns_base=()):
         for k, v in namespaces.iteritems():
             ns_parts = ns_base + (k,)
             link_dir = os.path.join(self.location, *ns_parts)
@@ -148,7 +192,7 @@ class FluffyOmelette(Omelette):
                         "Skipping." % (project_name, link_dir))
                     continue
             if len(v) > 0:
-                self._create_namespaces(dist, v, ns_parts)
+                self._crack_shell(dist, v, ns_parts)
             else:
                 egg_ns_dir = os.path.join(dist.location, *ns_parts)
                 if not os.path.isdir(egg_ns_dir):
@@ -236,7 +280,7 @@ class FluffyOmelette(Omelette):
                     ns = namespaces
                     for part in line.split('.'):
                         ns = ns.setdefault(part, {})
-                self._create_namespaces(dist, namespaces)
+                self._crack_shell(dist, namespaces)
                 self._add_seasoning(dist, namespaces)
 
         for package in self.packages:
@@ -252,3 +296,100 @@ class FluffyOmelette(Omelette):
 
             link_dir = os.path.join(self.location, link_name)
             self._add_bacon(package_dir, link_dir)
+
+
+class Filter(object):
+    """Returns an exclusion/inclusion builder callable for use with
+    shutil.copytree."""
+
+    def __init__(self, ignores):
+        if type(ignores) != type([]):
+            raise TypeError("ignores must be a list.")
+        self.ignores = ignores
+
+    def __call__(self, src, names):
+        """Builds a set of ignored names for shutils.copytree."""
+        return self.excludes(names)
+
+    def excludes(self, names):
+        excludes = []
+        for ignore in self.ignores:
+            for name in names:
+                if name.find(ignore) >= 0:
+                    excludes.append(name)
+        return excludes
+
+    def includes(self, names):
+        excludes = self.excludes(names)
+        includes = []
+        for name in names:
+            if name not in excludes:
+                includes.append(name)
+        return includes
+
+
+class FatOmelette(Omelette):
+    """A zc.buildout recipe similar to the default FluffyOmelette recipe (or
+    skinny omelette) except that it uses both the egg white and yoke. This
+    recipe copies the entire package (egg) contents into a single directory
+    instead of creating symbolic links for them."""
+
+    def _add_ingredient(self, dist):
+        skillet = self.options['location']
+        name_filter = Filter(['.pyc', '.svn', '.hg', '.git', 'EGG-INFO',
+            'egg-info',])
+        top_level = list(dist._get_metadata('top_level.txt'))
+        # native_libs = list(dist._get_metadata('native_libs.txt'))
+        dist_name = dist.project_name
+
+        if not os.path.isdir(dist.location):
+            # TODO Add egg to the requires.txt of this
+            #   macro-package AND nail it!
+            self.logger.info("(While processing egg %s) Package "
+                "'%s' is zipped.  Skipping." %
+                (project_name, os.path.sep.join(ns_parts)))
+            return False
+
+        
+        for name in top_level:
+            # Determine if the file is a package or module
+            src = os.path.join(dist.location, name)
+            if os.path.exists(src + '.py'):
+                src += '.py'
+                name += '.py'
+            dst = os.path.join(skillet, name)
+            # self.logger.warn("Warning: The '%s*' file cannot be found in "
+            #     " the top-level of the '%s' distribution.  Skipping." %
+            #     (name, dist_name))
+
+            if os.path.exists(dst):
+                self.logger.warn("Warning: File or directory already "
+                    "exists: '%s'  Skipping part of the %s distribution" %
+                    (dist_name, dst))
+                continue
+            elif os.path.isdir(src):
+                shutil.copytree(src, dst, ignore=name_filter)
+            else:
+                shutil.copy2(src, skillet)
+        return True
+
+    def cook(self):
+        requirements, ws = self.egg.working_set()
+        for dist in ws.by_key.values():
+            project_name =  dist.project_name
+            if project_name not in self.ignored_eggs:
+                self._add_ingredient(dist)
+
+        for package in self.packages:
+            if len(package) == 1:
+                link_name = 'Products/'
+                package_dir = package[0]
+            elif len(package) == 2:
+                link_name = package[1]
+                package_dir = package[0]
+            else:
+                self.logger.warn("Warning: Invalid package: %s" % package)
+                continue
+
+            link_dir = os.path.join(self.location, link_name)
+            # self._add_bacon(package_dir, link_dir)

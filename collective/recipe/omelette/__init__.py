@@ -1,2 +1,2 @@
 # -*- coding: utf-8 -*-
-from skinny import uninstall, FluffyOmelette
+from recipe import uninstall, FatOmelette, FluffyOmelette, Omelette

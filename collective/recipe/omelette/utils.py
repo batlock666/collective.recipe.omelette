@@ -1,5 +1,7 @@
 import sys, os, shutil
 
+from collective.recipe.omelette.exc import RottenEgg
+
 WIN32 = False
 if sys.platform[:3].lower() == "win":
     WIN32 = True

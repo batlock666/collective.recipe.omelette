@@ -27,13 +27,13 @@ long_description = (
     read('CONTRIBUTORS.txt')
     )
 recipe_entry_point = 'collective.recipe.omelette:FluffyOmelette'
-megapkg_entry_point = 'collective.recipe.omelette:HugeOmelette'
+fat_recipe_entry_point = 'collective.recipe.omelette:FatOmelette'
 uninstall_entry_point = 'collective.recipe.omelette:uninstall'
 
 entry_points = {
     "zc.buildout": [
         "default = %s" % recipe_entry_point,
-        "megapkg = %s" % megapkg_entry_point,
+        "fatty = %s" % fat_recipe_entry_point,
         ],
     "zc.buildout.uninstall": [
         "default = %s" % uninstall_entry_point,

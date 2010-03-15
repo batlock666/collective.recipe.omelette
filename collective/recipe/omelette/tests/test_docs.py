@@ -39,26 +39,26 @@ def tearDown(test):
         rmtree(product_dir)
 
 def test_suite():
-    suite = unittest.TestSuite((
-            doctest.DocFileSuite(
-                'omelette.txt',
-                globs=globals(),
-                setUp=setUp,
-                tearDown=tearDown,
-                optionflags=optionflags,
-                checker=renormalizing.RENormalizing([
-                        # If want to clean up the doctest output you
-                        # can register additional regexp normalizers
-                        # here. The format is a two-tuple with the RE
-                        # as the first item and the replacement as the
-                        # second item, e.g.
-                        # (re.compile('my-[rR]eg[eE]ps'), 'my-regexps')
-                        zc.buildout.testing.normalize_path,
-                        
-                        # don't count subversion dirs in ls() output
-                        (re.compile(r'^\s*?d\s+.svn\s*?^', re.MULTILINE | re.DOTALL), ''),
-                        ]),
-                ),
+    renormalizer = renormalizing.RENormalizing([
+        # If want to clean up the doctest output you
+        # can register additional regexp normalizers
+        # here. The format is a two-tuple with the RE
+        # as the first item and the replacement as the
+        # second item, e.g.
+        # (re.compile('my-[rR]eg[eE]ps'), 'my-regexps')
+        zc.buildout.testing.normalize_path,
+        # don't count subversion dirs in ls() output
+        (re.compile(r'^\s*?d\s+.svn\s*?^', re.MULTILINE | re.DOTALL), ''),
+        ])
+    suite = unittest.TestSuite()
+    suite.addTest(
+        doctest.DocFileSuite(
+            'omelette.txt',
+            globs=globals(),
+            setUp=setUp,
+            tearDown=tearDown,
+            optionflags=optionflags,
+            checker=renormalizer,
             ))
     return suite
 
