@@ -1,4 +1,5 @@
 import sys, os, shutil
+import fnmatch
 
 from collective.recipe.omelette.exc import RottenEgg
 
@@ -94,3 +95,17 @@ def makedirs(target, is_namespace=False):
                     init_file.write('# mushroom')
                 init_file.close()
     return True
+
+# Copied from shutil for backwards compatibility. It only became available in
+#   Python 2.6's shutil library.
+def ignore_patterns(*patterns):
+    """Function that can be used as copytree() ignore parameter.
+
+    Patterns is a sequence of glob-style patterns
+    that are used to exclude files"""
+    def _ignore_patterns(path, names):
+        ignored_names = []
+        for pattern in patterns:
+            ignored_names.extend(fnmatch.filter(names, pattern))
+        return set(ignored_names)
+    return _ignore_patterns

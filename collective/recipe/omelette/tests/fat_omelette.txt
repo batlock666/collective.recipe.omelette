@@ -1,7 +1,7 @@
 Collective.recipe.omelette test suite
 =====================================
 
-Install a fat omelette with an egg, some packages, and a product::
+Install a fancy omelette with an egg, some packages, and a product::
 
     >>> write('buildout.cfg',
     ... """
@@ -39,3 +39,80 @@ happen when using junction on Windows!)::
     >>> ls('parts/omelette/omelettetests/egg1')
     - __init__.py
     - in_egg1.txt
+
+Change the name of the part and make sure it updates, and do the same check as
+just above for not clobbering stuff accidentally::
+
+    >>> write('buildout.cfg',
+    ... """
+    ... [buildout]
+    ... develop = %(test_dir)s/omelettetests.egg1
+    ... parts = frittata
+    ...
+    ... [frittata]
+    ... recipe = collective.recipe.omelette:fatty
+    ... eggs = egg.with.name.different.from.contents
+    ... """ % globals())
+    >>> print system(buildout + ' -v')
+    Installing...
+    ...
+    Installing frittata.
+    ...
+    <BLANKLINE>
+    >>> ls('parts')
+    d frittata
+    >>> ls('parts/frittata/omelettetests/egg1')
+    - __init__.py
+    - in_egg1.txt
+
+You can also override the location of the omelette if you want to put it
+somewhere else entirely::
+
+    >>> write('buildout.cfg',
+    ... """
+    ... [buildout]
+    ... eggs = setuptools
+    ... parts = omelette
+    ...
+    ... [omelette]
+    ... recipe = collective.recipe.omelette:fatty
+    ... eggs = ${buildout:eggs}
+    ... location = ${buildout:directory}/omelette
+    ... """)
+    >>> print system(buildout + ' -q')
+    >>> os.path.exists('omelette')
+    True
+
+You can ignore a particular package::
+
+    >>> write('buildout.cfg',
+    ... """
+    ... [buildout]
+    ... eggs = setuptools
+    ... parts = omelette
+    ...
+    ... [omelette]
+    ... recipe = collective.recipe.omelette:fatty
+    ... eggs = ${buildout:eggs}
+    ... ignores = setuptools, distribute
+    ... """)
+    >>> print system(buildout + ' -q')
+    >>> os.path.exists('parts/omelette/setuptools')
+    False
+
+Or ignore all development eggs::
+
+    >>> write('buildout.cfg',
+    ... """
+    ... [buildout]
+    ... eggs = collective.recipe.omelette
+    ... parts = omelette
+    ...
+    ... [omelette]
+    ... recipe = collective.recipe.omelette:fatty
+    ... eggs = ${buildout:eggs}
+    ... ignore-develop = true
+    ... """)
+    >>> print system(buildout + ' -q')
+    >>> os.path.exists('parts/omelette/collective')
+    False

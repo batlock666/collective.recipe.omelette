@@ -29,6 +29,11 @@ from collective.recipe.omelette.exc import RottenEgg
 from collective.recipe.omelette.utils import (islink, makedirs, rmitem,
     rmtree, symlink, unlink, WIN32)
 
+try:
+    from shutil import ignore_patterns
+except ImportError:
+    from collective.recipe.omelette.utils import ignore_patterns
+
 def uninstall(name, options):
     location = options.get('location')
     if os.path.exists(location):
@@ -303,36 +308,6 @@ class FluffyOmelette(Omelette):
             self._add_bacon(package_dir, link_dir)
 
 
-class Filter(object):
-    """Returns an exclusion/inclusion builder callable for use with
-    shutil.copytree."""
-
-    def __init__(self, ignores):
-        if type(ignores) != type([]):
-            raise TypeError("ignores must be a list.")
-        self.ignores = ignores
-
-    def __call__(self, src, names):
-        """Builds a set of ignored names for shutils.copytree."""
-        return self.excludes(names)
-
-    def excludes(self, names):
-        excludes = []
-        for ignore in self.ignores:
-            for name in names:
-                if name.find(ignore) >= 0:
-                    excludes.append(name)
-        return excludes
-
-    def includes(self, names):
-        excludes = self.excludes(names)
-        includes = []
-        for name in names:
-            if name not in excludes:
-                includes.append(name)
-        return includes
-
-
 class FatOmelette(Omelette):
     """A zc.buildout recipe similar to the default FluffyOmelette recipe (or
     skinny omelette) except that it uses both the egg white and yoke. This
@@ -341,22 +316,25 @@ class FatOmelette(Omelette):
 
     def _add_ingredient(self, dist):
         skillet = self.options['location']
-        name_filter = Filter(['.pyc', '.svn', '.hg', '.git', 'EGG-INFO',
-            'egg-info',])
+        name_filter = ignore_patterns('*.pyc', '.svn', '.hg*', '.git*')
         top_level = list(dist._get_metadata('top_level.txt'))
         # native_libs = list(dist._get_metadata('native_libs.txt'))
         dist_name = dist.project_name
 
         if not os.path.isdir(dist.location):
-            # TODO Add egg to the requires.txt of this
-            #   macro-package AND nail it!
-            self.logger.info("(While processing egg %s) Package "
-                "'%s' is zipped.  Skipping." %
-                (project_name, os.path.sep.join(ns_parts)))
             raise RottenEgg(dist)
         else:
             self._build_namespace_tree(dist, name_filter)
         return True
+
+    def _add_bacon(self, package_dir, target_dir):
+        """Copy packages from package_dir into target_dir. Recurse a level if
+        target_dir/(package) already exists."""
+        if not os.path.exists(package_dir):
+            raise RuntimeError("Package directory '%s' not found." %
+                package_dir)
+
+        self.logger.warn("Packages at '%s' will not be included." % package_dir)
 
     def utensil(self, src, dst, excluder=None):
         try:
@@ -375,16 +353,22 @@ class FatOmelette(Omelette):
             if project_name not in self.ignored_eggs:
                 self._add_ingredient(dist)
 
-        for package in self.packages:
-            if len(package) == 1:
-                link_name = 'Products/'
-                package_dir = package[0]
-            elif len(package) == 2:
-                link_name = package[1]
-                package_dir = package[0]
-            else:
-                self.logger.warn("Warning: Invalid package: %s" % package)
-                continue
-
-            link_dir = os.path.join(self.location, link_name)
-            # self._add_bacon(package_dir, link_dir)
+        if self.packages:
+            self.logger.warn("Warning: Packages and Products are not used "
+                "by this recipe.")
+        # for package in self.packages:
+        #     if len(package) == 1:
+        #         # If it only one element it's a Product?
+        #         target_name = 'Products'
+        #         package_dir = package[0]
+        #     elif len(package) == 2:
+        #         # If it's more than one element, then it's a package; which
+        #         #   means that it should have a valid package structure.
+        #         target_name = package[1]
+        #         package_dir = package[0]
+        #     else:
+        #         raise RuntimeError("Warning: Invalid packaging syntax for: "
+        #             "%s" % package)
+        # 
+        #     target_dir = os.path.join(self.location, target_name)
+        #     self._add_bacon(package_dir, target_dir)
