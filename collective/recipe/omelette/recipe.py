@@ -23,8 +23,9 @@ import os
 import sys
 import shutil
 import logging
-import zc.recipe.egg
+from ConfigParser import ConfigParser
 
+import zc.recipe.egg
 from collective.recipe.omelette.exc import RottenEgg
 from collective.recipe.omelette.utils import (islink, makedirs, rmitem,
     rmtree, symlink, unlink, WIN32)
@@ -62,7 +63,7 @@ class Omelette(object):
                 self.name,
                 )
         # For easy reference and backwards compatibility with the uninstall
-        #   proceedure we location in the options dictionary.
+        #   proceedure, we keep location in the options dictionary up-to-date.
         self.location = options['location']
 
         ignore_develop = options.get('ignore-develop', '').lower()
@@ -81,6 +82,20 @@ class Omelette(object):
             for l in options.get('packages', '').splitlines()
             if l.strip()]
 
+        # Metadata config file
+        self._init_metadata()
+
+    def _init_metadata(self):
+        """Initialize the metadata configuration file."""
+        filename = self.options.get('metadata', None)
+        if filename is None:
+            self.metadata = self.metadata_file = None
+        else:
+            self.metadata_file = os.path.join(
+                self.buildout['buildout']['directory'], filename)
+            self.metadata = ConfigParser()
+            self.metadata.read(self.metadata_file)
+
     def _build_namespace_tree(self, dist, excluder=None):
         """Creates the namespace directory tree struction."""
         namespaces = {}
@@ -88,7 +103,7 @@ class Omelette(object):
             ns = namespaces
             for part in line.split('.'):
                 ns = ns.setdefault(part, {})
-        def create_namespace(pkg_location, namespace, ns_base=()):
+        def create_namespace(pkg_location, namespaces, ns_base=()):
             for k, v in namespaces.iteritems():
                 ns_parts = ns_base + (k,)
                 target_dir = os.path.join(self.location, *ns_parts)
@@ -99,7 +114,7 @@ class Omelette(object):
                         continue
                 # 2. Is namespace of more than one level?
                 if len(v) > 0:
-                    create_namespaces(pkg_location, v, ns_parts)
+                    create_namespace(pkg_location, v, ns_parts)
                 # 3. end of the line, packages from here on out
                 else:
                     egg_ns_dir = os.path.join(pkg_location, *ns_parts)
@@ -143,6 +158,11 @@ class Omelette(object):
             for item in os.listdir(self.location):
                 rmitem(os.path.join(self.location, item))
             raise
+
+        # Write out the metadata file before completing the install
+        if self.metadata:
+            file = open(self.metadata_file, 'w')
+            self.metadata.write(file)
 
         # Serve the omelette
         return self.location
@@ -314,6 +334,10 @@ class FatOmelette(Omelette):
     recipe copies the entire package (egg) contents into a single directory
     instead of creating symbolic links for them."""
 
+    def __init__(self, buildout, name, options):
+        options['metadata'] = 'setup.cfg'
+        super(FatOmelette, self).__init__(buildout, name, options)
+
     def _add_ingredient(self, dist):
         skillet = self.options['location']
         name_filter = ignore_patterns('*.pyc', '.svn', '.hg*', '.git*')
@@ -348,10 +372,36 @@ class FatOmelette(Omelette):
 
     def cook(self):
         requirements, ws = self.egg.working_set()
+        # Initialize the ,etadata variables with initial whitespace for
+        #   indention style formating.
+        provides = ['',]
+        requires = ['',]
         for dist in ws.by_key.values():
             project_name =  dist.project_name
             if project_name not in self.ignored_eggs:
-                self._add_ingredient(dist)
+                try:
+                    # Attempt to add a distribution
+                    self._add_ingredient(dist)
+                except RottenEgg, err_ob:
+                    # While attempting to add the distribution, we found a
+                    #   problem where we can't add the distribution to this
+                    #   package, therefore we need to require it
+                    requires.append("%s==%s" % (
+                        err_ob.dist.project_name, err_ob.dist.version))
+                else:
+                    # The distribution was successfully added and now
+                    #   this package provides it
+                    provides.append("%s (%s)" % (
+                        dist.project_name, dist.version))
+
+        # Assign the requires and provides metadata
+        section = 'metadata'
+        if not self.metadata.has_section(section):
+            self.metadata.add_section(section)
+        requires.sort()
+        provides.sort()
+        self.metadata.set(section, 'requires', '\n'.join(requires))
+        self.metadata.set(section, 'provides', '\n'.join(provides))
 
         if self.packages:
             self.logger.warn("Warning: Packages and Products are not used "

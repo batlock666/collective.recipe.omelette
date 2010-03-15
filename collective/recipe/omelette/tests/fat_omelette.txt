@@ -116,3 +116,26 @@ Or ignore all development eggs::
     >>> print system(buildout + ' -q')
     >>> os.path.exists('parts/omelette/collective')
     False
+
+The ingredients used to build the omelette are included in the metadata file, with an ingredient measurement (a version number)::
+
+    >>> write('buildout.cfg',
+    ... """
+    ... [buildout]
+    ... eggs = collective.recipe.omelette
+    ... parts = omelette
+    ...
+    ... [omelette]
+    ... recipe = collective.recipe.omelette:fatty
+    ... eggs = ${buildout:eggs}
+    ... ignores = setuptools, distribute
+    ... """)
+    >>> print system(buildout + ' -q')
+    >>> cat('', 'setup.cfg')
+    [metadata]
+    requires = 
+    provides = 
+    	collective.recipe.omelette (...dev)
+    	zc.buildout (...)
+    	zc.recipe.egg (...)
+    <BLANKLINE>
