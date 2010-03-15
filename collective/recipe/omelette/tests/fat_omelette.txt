@@ -1,0 +1,41 @@
+Collective.recipe.omelette test suite
+=====================================
+
+Install a fat omelette with an egg, some packages, and a product::
+
+    >>> write('buildout.cfg',
+    ... """
+    ... [buildout]
+    ... develop = %(test_dir)s/omelettetests.egg1
+    ... parts = omelette
+    ...
+    ... [omelette]
+    ... recipe = collective.recipe.omelette:fatty
+    ... eggs = egg.with.name.different.from.contents
+    ... """ % globals())
+    >>> print system(buildout + ' -v')
+    Installing...
+    ...
+    Installing omelette.
+    ...
+    <BLANKLINE>
+
+Now we have everything linked together in one place, pointing at the real
+locations::
+
+    >>> import os
+    >>> ls('parts')
+    d omelette
+    >>> cat('parts/omelette/omelettetests/ingredient.py')
+    """Namespace packages can contain modules.  This is one such module."""
+    >>> ls('parts/omelette/omelettetests/egg1')
+    - __init__.py
+    - in_egg1.txt
+
+Make sure we didn't clobber stuff that was linked from outside the omelette
+directory when we reinstalled (we needed to take extra care that this didn't
+happen when using junction on Windows!)::
+
+    >>> ls('parts/omelette/omelettetests/egg1')
+    - __init__.py
+    - in_egg1.txt

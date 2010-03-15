@@ -25,6 +25,7 @@ import shutil
 import logging
 import zc.recipe.egg
 
+from collective.recipe.omelette.exc import RottenEgg
 from collective.recipe.omelette.utils import (islink, makedirs, rmitem,
     rmtree, symlink, unlink, WIN32)
 
@@ -75,7 +76,8 @@ class Omelette(object):
             for l in options.get('packages', '').splitlines()
             if l.strip()]
 
-    def _build_namespace_tree(self, dist):
+    def _build_namespace_tree(self, dist, excluder=None):
+        """Creates the namespace directory tree struction."""
         namespaces = {}
         for line in dist._get_metadata('namespace_packages.txt'):
             ns = namespaces
@@ -105,23 +107,26 @@ class Omelette(object):
                             continue
                         name_parts = ns_parts + (name,)
                         src = os.path.join(dist.location, *name_parts)
-                        dst = os.path.join(location, *name_parts)
+                        dst = os.path.join(self.location, *name_parts)
                         if os.path.exists(dst):
                             continue
                         try:
-                            self.action(src, dst)
+                            self.utensil(src, dst, excluder=excluder)
                         except OSError:
                             pass
         create_namespace(dist.location, namespaces)
 
-    def utensil(self, src, dst, exclude=None):
+    def utensil(self, src, dst, excluder=None):
+        """The action used to process the distribute. For example, it could
+        be a cut and paste process."""
         raise NotImplementedError()
 
     def cook(self):
+        """Process all the distributions specified in this recipe."""
         raise NotImplementedError()
 
     def install(self):
-        """Crack the eggs open and mix them together"""
+        """Crack the eggs (distributions) open and mix them together."""
         # Smash the plate if there is one and create a new one
         uninstall(self.name, self.options)
         os.mkdir(self.location)
@@ -348,29 +353,19 @@ class FatOmelette(Omelette):
             self.logger.info("(While processing egg %s) Package "
                 "'%s' is zipped.  Skipping." %
                 (project_name, os.path.sep.join(ns_parts)))
-            return False
+            raise RottenEgg(dist)
+        else:
+            self._build_namespace_tree(dist, name_filter)
+        return True
 
-        
-        for name in top_level:
-            # Determine if the file is a package or module
-            src = os.path.join(dist.location, name)
-            if os.path.exists(src + '.py'):
-                src += '.py'
-                name += '.py'
-            dst = os.path.join(skillet, name)
-            # self.logger.warn("Warning: The '%s*' file cannot be found in "
-            #     " the top-level of the '%s' distribution.  Skipping." %
-            #     (name, dist_name))
-
-            if os.path.exists(dst):
-                self.logger.warn("Warning: File or directory already "
-                    "exists: '%s'  Skipping part of the %s distribution" %
-                    (dist_name, dst))
-                continue
-            elif os.path.isdir(src):
-                shutil.copytree(src, dst, ignore=name_filter)
+    def utensil(self, src, dst, excluder=None):
+        try:
+            if os.path.isdir(src):
+                shutil.copytree(src, dst, ignore=excluder)
             else:
-                shutil.copy2(src, skillet)
+                shutil.copy2(src, dst)
+        except OSError:
+            pass # XXX
         return True
 
     def cook(self):

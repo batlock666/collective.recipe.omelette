@@ -60,6 +60,15 @@ def test_suite():
             optionflags=optionflags,
             checker=renormalizer,
             ))
+    suite.addTest(
+        doctest.DocFileSuite(
+            'fat_omelette.txt',
+            globs=globals(),
+            setUp=setUp,
+            tearDown=tearDown,
+            optionflags=optionflags,
+            checker=renormalizer,
+            ))
     return suite
 
 if __name__ == '__main__':
