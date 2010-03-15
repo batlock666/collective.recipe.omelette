@@ -69,20 +69,9 @@ class Omelette(object):
         # Zope2-centric?
         products = options.get('products', '').split()
         self.packages = [(p, 'Products') for p in products]
-        for line in options.get('packages', '').splitlines():
-            if line == '': # check for equality not just emptiness
-                # Using the indentation configuration style usually results
-                #   in the first line being empty.
-                continue
-            try:
-                package, package_name = line.split()
-            except ValueError:
-                package = line
-                package_name = '.'
-                self.logger.warn("Warning: Invalid packages syntax for %s.  "
-                    "Assuming package name is the same as the directory." %
-                    package)
-            self.packages.append((package, package_name,))
+        self.packages += [l.split()
+            for l in options.get('packages', '').splitlines()
+            if l.strip()]
 
     def cook(self):
         raise NotImplementedError()
@@ -120,7 +109,7 @@ class FluffyOmelette(Omelette):
                 self.logger.warn("Warning: (While processing package "
                     "directory %s) Link already exists at %s.  Skipping." %
                     (package_dir, target_dir))
-                return            
+                return
             elif not os.path.exists(target_dir):
                 if not makedirs(target_dir):
                     self.logger.warn("Warning: (While processing package "
