@@ -26,8 +26,8 @@ long_description = (
     + '\n' +
     read('CONTRIBUTORS.txt')
     )
-recipe_entry_point = 'collective.recipe.omelette:Recipe'
-megapkg_entry_point = 'collective.recipe.omelette:MegaPkg'
+recipe_entry_point = 'collective.recipe.omelette:FluffyOmelette'
+megapkg_entry_point = 'collective.recipe.omelette:HugeOmelette'
 uninstall_entry_point = 'collective.recipe.omelette:uninstall'
 
 entry_points = {

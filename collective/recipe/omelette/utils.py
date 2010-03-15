@@ -61,3 +61,34 @@ def rmitem(location):
         rmtree(location)
     else:
         os.remove(location)
+
+NAMESPACE_STANZA = """# See PEP 382: http://www.python.org/dev/peps/pep-0382/
+try:
+    __import__('pkg_resources').declare_namespace(__name__)
+except ImportError:
+    from pkgutil import extend_path
+    __path__ = extend_path(__path__, __name__)
+"""
+
+def makedirs(target, is_namespace=False):
+    """ Similar to os.makedirs, but adds __init__.py files as it goes.  Returns a boolean
+        indicating success.
+    """
+    drive, path = os.path.splitdrive(target)
+    parts = path.split(os.path.sep)
+    current = drive + os.path.sep
+    for part in parts:
+        current = os.path.join(current, part)
+        if islink(current):
+            return False
+        if not os.path.exists(current):
+            os.mkdir(current)
+            init_filename = os.path.join(current, '__init__.py')
+            if not os.path.exists(init_filename):
+                init_file = open(init_filename, 'w')
+                if is_namespace or part == 'Products':
+                    init_file.write(NAMESPACE_STANZA)
+                else:
+                    init_file.write('# mushroom')
+                init_file.close()
+    return True

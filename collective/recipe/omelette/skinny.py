@@ -24,47 +24,15 @@ import sys
 import shutil
 import logging
 import zc.recipe.egg
-from collective.recipe.omelette.utils import (symlink, unlink, islink,
-    rmitem, rmtree, WIN32)
-
-NAMESPACE_STANZA = """# See PEP 382: http://www.python.org/dev/peps/pep-0382/
-try:
-    __import__('pkg_resources').declare_namespace(__name__)
-except ImportError:
-    from pkgutil import extend_path
-    __path__ = extend_path(__path__, __name__)
-"""
-
-def makedirs(target, is_namespace=False):
-    """ Similar to os.makedirs, but adds __init__.py files as it goes.  Returns a boolean
-        indicating success.
-    """
-    drive, path = os.path.splitdrive(target)
-    parts = path.split(os.path.sep)
-    current = drive + os.path.sep
-    for part in parts:
-        current = os.path.join(current, part)
-        if islink(current):
-            return False
-        if not os.path.exists(current):
-            os.mkdir(current)
-            init_filename = os.path.join(current, '__init__.py')
-            if not os.path.exists(init_filename):
-                init_file = open(init_filename, 'w')
-                if is_namespace or part == 'Products':
-                    init_file.write(NAMESPACE_STANZA)
-                else:
-                    init_file.write('# mushroom')
-                init_file.close()
-    return True
+from collective.recipe.omelette.utils import (islink, makedirs, rmitem,
+    rmtree, symlink, unlink, WIN32)
 
 def uninstall(name, options):
     location = options.get('location')
     if os.path.exists(location):
         rmtree(location)
 
-
-class Recipe(object):
+class Omelette(object):
     """zc.buildout recipe"""
 
     def __init__(self, buildout, name, options):
@@ -115,6 +83,34 @@ class Recipe(object):
                     "Assuming package name is the same as the directory." %
                     package)
             self.packages.append((package, package_name,))
+
+    def cook(self):
+        raise NotImplementedError()
+
+    def install(self):
+        """Crack the eggs open and mix them together"""
+        # Smash the plate if there is one and create a new one
+        uninstall(self.name, self.options)
+        os.mkdir(self.location)
+
+        # Cook the omelette, if it's not perfect throw it away
+        try:
+            self.cook()
+        except:
+            for item in os.listdir(self.location):
+                rmitem(os.path.join(self.location, item))
+            raise
+
+        # Serve the omelette
+        return self.location
+
+    update = install
+
+
+class FluffyOmelette(Omelette):
+    """zc.buildout recipe for creating an egg whites only omelette. This
+    recipe will create a single directory with symbolic links to all the
+    packages (eggs) in the recipe."""
 
     def _add_bacon(self, package_dir, target_dir):
         """Link packages from package_dir into target_dir. Recurse a level if
@@ -240,7 +236,7 @@ class Recipe(object):
                     package_location, link_location))
                 continue
 
-    def cook_ingredients(self):
+    def cook(self):
         """Cook the omelette."""
         requirements, ws = self.egg.working_set()
         for dist in ws.by_key.values():
@@ -267,22 +263,3 @@ class Recipe(object):
 
             link_dir = os.path.join(self.location, link_name)
             self._add_bacon(package_dir, link_dir)
-
-    def install(self):
-        """Crack the eggs open and mix them together"""
-        # Smash the plate if there is one and create a new one
-        uninstall(self.name, self.options)
-        os.mkdir(self.location)
-
-        # Cook the omelette, if it's not perfect throw it away
-        try:
-            self.cook_ingredients()
-        except:
-            for item in os.listdir(self.location):
-                rmitem(os.path.join(self.location, item))
-            raise
-
-        # Serve the omelette
-        return self.location
-
-    update = install
