@@ -5,13 +5,13 @@ if sys.platform[:3].lower() == "win":
     WIN32 = True
 
 if WIN32:
-    
+
     def _run(cmd):
         stdout = os.popen(cmd)
         output = stdout.read()
         stdout.close()
         return output
-    
+
     # find the junction utility; warn if missing
     JUNCTION = "junction.exe"
     found = False
@@ -20,8 +20,10 @@ if WIN32:
             found = True
             break
     if not found:
-        raise EnvironmentError, "Junction.exe not found in path.  Collective.recipe.omelette cannot continue.  See omelette's README.txt."
-    
+        raise EnvironmentError("Junction.exe not found in path.  "
+            "Collective.recipe.omelette cannot continue.  See omelette's "
+            "README.txt.")
+
     def symlink(src, dest):
         cmd = "%s %s %s" % (JUNCTION, os.path.abspath(dest), os.path.abspath(src),)
         _run(cmd)
@@ -34,8 +36,7 @@ if WIN32:
         cmd = "%s %s" % (JUNCTION, os.path.abspath(dest),)
         output = _run(cmd)
         return "Substitute Name:" in output
-        
-        
+
     def rmtree(location, nonlinks=True):
         # Explicitly unlink all junction'd links
         for root, dirs, files in os.walk(location, topdown=False):
@@ -46,9 +47,17 @@ if WIN32:
         # Then get rid of everything else
         if nonlinks:
             shutil.rmtree(location)
-        
+
 else:
     symlink = os.symlink
     islink = os.path.islink
     rmtree = shutil.rmtree
     unlink = None
+
+def rmitem(location):
+    if islink(location):
+        os.remove(location)
+    elif os.path.isdir(location):
+        rmtree(location)
+    else:
+        os.remove(location)

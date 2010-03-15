@@ -24,7 +24,8 @@ import sys
 import shutil
 import logging
 import zc.recipe.egg
-from collective.recipe.omelette.utils import symlink, unlink, islink, rmtree, WIN32
+from collective.recipe.omelette.utils import (symlink, unlink, islink,
+    rmitem, rmtree, WIN32)
 
 NAMESPACE_STANZA = """# See PEP 382: http://www.python.org/dev/peps/pep-0382/
 try:
@@ -100,35 +101,56 @@ class Recipe(object):
         # Zope2-centric?
         products = options.get('products', '').split()
         self.packages = [(p, 'Products') for p in products]
-        self.packages += [l.split()
-                         for l in options.get('packages', '').splitlines()
-                         if l.strip()]
+        for line in options.get('packages', '').splitlines():
+            if line == '': # check for equality not just emptiness
+                # Using the indentation configuration style usually results
+                #   in the first line being empty.
+                continue
+            try:
+                package, package_name = line.split()
+            except ValueError:
+                package = line
+                package_name = '.'
+                self.logger.warn("Warning: Invalid packages syntax for %s.  "
+                    "Assuming package name is the same as the directory." %
+                    package)
+            self.packages.append((package, package_name,))
 
     def _add_bacon(self, package_dir, target_dir):
         """Link packages from package_dir into target_dir. Recurse a level if
         target_dir/(package) already exists."""
         if os.path.exists(package_dir):
             if islink(target_dir):
-                self.logger.warn("Warning: (While processing package directory %s) Link already exists at %s.  Skipping." % (package_dir, target_dir))
+                self.logger.warn("Warning: (While processing package "
+                    "directory %s) Link already exists at %s.  Skipping." %
+                    (package_dir, target_dir))
                 return            
             elif not os.path.exists(target_dir):
                 if not makedirs(target_dir):
-                    self.logger.warn("Warning: (While processing package directory %s) Link already exists at %s.  Skipping." % (package_dir, target_dir))
+                    self.logger.warn("Warning: (While processing package "
+                        "directory %s) Link already exists at %s.  "
+                        "Skipping." % (package_dir, target_dir))
                     return
-            for package_name in [p for p in os.listdir(package_dir) if not p.startswith('.')]:
+            package_names = [p
+                for p in os.listdir(package_dir)
+                if not p.startswith('.')]
+            for package_name in package_names:
                 package_location = os.path.join(package_dir, package_name)
                 if not os.path.isdir(package_location):
                     # skip ordinary files
                     continue
                 link_location = os.path.join(target_dir, package_name)
                 if islink(link_location):
-                    self.logger.warn("Warning: (While processing package %s) Link already exists.  Skipping." % package_location)
+                    self.logger.warn("Warning: (While processing package "
+                        "%s) Link already exists.  Skipping." %
+                        package_location)
                 elif os.path.isdir(link_location):
                     self._add_bacon(package_location, link_location)
                 else:
                     symlink(package_location, link_location)
         else:
-            self.logger.warn("Warning: Product directory %s not found.  Skipping." % package_dir)
+            self.logger.warn("Warning: Product directory %s not found.  "
+                "Skipping." % package_dir)
 
     def _create_namespaces(self, dist, namespaces, ns_base=()):
         for k, v in namespaces.iteritems():
@@ -136,14 +158,18 @@ class Recipe(object):
             link_dir = os.path.join(self.location, *ns_parts)
             if not os.path.exists(link_dir):
                 if not makedirs(link_dir, is_namespace=True):
-                    self.logger.warn("Warning: (While processing egg %s) Could not create namespace directory (%s).  Skipping." % (project_name, link_dir))
+                    self.logger.warn("Warning: (While processing egg %s) "
+                        "Could not create namespace directory (%s).  "
+                        "Skipping." % (project_name, link_dir))
                     continue
             if len(v) > 0:
                 self._create_namespaces(dist, v, ns_parts)
             else:
                 egg_ns_dir = os.path.join(dist.location, *ns_parts)
                 if not os.path.isdir(egg_ns_dir):
-                    self.logger.info("(While processing egg %s) Package '%s' is zipped.  Skipping." % (project_name, os.path.sep.join(ns_parts)))
+                    self.logger.info("(While processing egg %s) Package "
+                        "'%s' is zipped.  Skipping." %
+                        (project_name, os.path.sep.join(ns_parts)))
                     continue
                 dirs = os.listdir(egg_ns_dir)
                 for name in dirs:
@@ -157,9 +183,65 @@ class Recipe(object):
                     try:
                         symlink(src, dst)
                     except OSError:
-                        self.logger.warn("Could not create symlink while processing %s" % (os.path.join(*name_parts)))
+                        self.logger.warn("Could not create symlink while "
+                            "processing %s" % (os.path.join(*name_parts)))
 
-    def _cook_ingredients(self):
+    def _add_seasoning(self, dist, namespaces):
+        top_level = list(dist._get_metadata('top_level.txt'))
+        native_libs = list(dist._get_metadata('native_libs.txt'))
+        for package_name in top_level:
+            if package_name in namespaces:
+                # These are processed in create_namespaces
+                continue
+            else:
+                if not os.path.isdir(dist.location):
+                    self.logger.info("(While processing egg %s) Package "
+                        "'%s' is zipped.  Skipping." %
+                        (project_name, package_name))
+                    continue
+
+                package_location = os.path.join(dist.location, package_name)
+                link_location = os.path.join(self.location, package_name)
+
+                # Check for single python module
+                if not os.path.exists(package_location):
+                    name = package_name + '.py'
+                    package_location = os.path.join(dist.location, name)
+                    link_location = os.path.join(self.location, name)
+
+                # Check for native libs
+                # XXX - this should use native_libs from above
+                if not os.path.exists(package_location):
+                    name = package_name + '.so'
+                    package_location = os.path.join(dist.location, name)
+                    link_location = os.path.join(self.location, name)
+                if not os.path.exists(package_location):
+                    name = package_name + '.dll'
+                    package_location = os.path.join(dist.location, name)
+                    link_location = os.path.join(self.location, name)
+
+                if not os.path.exists(package_location):
+                    self.logger.warn("Warning: (While processing egg %s) "
+                        "Package '%s' not found.  Skipping." %
+                        (project_name, package_name))
+                    continue
+
+            if not os.path.exists(link_location):
+                if WIN32 and not os.path.isdir(package_location):
+                    self.logger.warn("Warning: (While processing egg %s) "
+                        "Can't link files on Windows (%s -> %s).  "
+                        "Skipping." % (project_name,
+                        package_location, link_location))
+                    continue
+                symlink(package_location, link_location)
+            else:
+                self.logger.info("(While processing egg %s) Link already "
+                    "exists (%s -> %s).  Skipping." % (project_name,
+                    package_location, link_location))
+                continue
+
+    def cook_ingredients(self):
+        """Cook the omelette."""
         requirements, ws = self.egg.working_set()
         for dist in ws.by_key.values():
             project_name =  dist.project_name
@@ -169,43 +251,8 @@ class Recipe(object):
                     ns = namespaces
                     for part in line.split('.'):
                         ns = ns.setdefault(part, {})
-                top_level = list(dist._get_metadata('top_level.txt'))
-                native_libs = list(dist._get_metadata('native_libs.txt'))
                 self._create_namespaces(dist, namespaces)
-                for package_name in top_level:
-                    if package_name in namespaces:
-                        # These are processed in create_namespaces
-                        continue
-                    else:
-                        if not os.path.isdir(dist.location):
-                            self.logger.info("(While processing egg %s) Package '%s' is zipped.  Skipping." % (project_name, package_name))
-                            continue
-
-                        package_location = os.path.join(dist.location, package_name)
-                        link_location = os.path.join(self.location, package_name)
-                        # check for single python module
-                        if not os.path.exists(package_location):
-                            package_location = os.path.join(dist.location, package_name+".py")
-                            link_location = os.path.join(self.location, package_name+".py")
-                        # check for native libs
-                        # XXX - this should use native_libs from above
-                        if not os.path.exists(package_location):
-                            package_location = os.path.join(dist.location, package_name+".so")
-                            link_location = os.path.join(self.location, package_name+".so")
-                        if not os.path.exists(package_location):
-                            package_location = os.path.join(dist.location, package_name+".dll")
-                            link_location = os.path.join(self.location, package_name+".dll")
-                        if not os.path.exists(package_location):
-                            self.logger.warn("Warning: (While processing egg %s) Package '%s' not found.  Skipping." % (project_name, package_name))
-                            continue
-                    if not os.path.exists(link_location):
-                        if WIN32 and not os.path.isdir(package_location):
-                            self.logger.warn("Warning: (While processing egg %s) Can't link files on Windows (%s -> %s).  Skipping." % (project_name, package_location, link_location))
-                            continue
-                        symlink(package_location, link_location)
-                    else:
-                        self.logger.info("(While processing egg %s) Link already exists (%s -> %s).  Skipping." % (project_name, package_location, link_location))
-                        continue
+                self._add_seasoning(dist, namespaces)
 
         for package in self.packages:
             if len(package) == 1:
@@ -215,7 +262,7 @@ class Recipe(object):
                 link_name = package[1]
                 package_dir = package[0]
             else:
-                self.logger.warn("Warning: Invalid package: %s" % (self.name, package))
+                self.logger.warn("Warning: Invalid package: %s" % package)
                 continue
 
             link_dir = os.path.join(self.location, link_name)
@@ -229,12 +276,13 @@ class Recipe(object):
 
         # Cook the omelette, if it's not perfect throw it away
         try:
-            self._cook_ingredients()
+            self.cook_ingredients()
         except:
             for item in os.listdir(self.location):
                 rmitem(os.path.join(self.location, item))
             raise
 
+        # Serve the omelette
         return self.location
 
     update = install
