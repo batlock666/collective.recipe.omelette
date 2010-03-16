@@ -109,3 +109,12 @@ def ignore_patterns(*patterns):
             ignored_names.extend(fnmatch.filter(names, pattern))
         return set(ignored_names)
     return _ignore_patterns
+
+def get_namespaces(dist):
+    """Parse the namespaces from text metadata into a dictionary."""
+    namespaces = {}
+    for line in dist._get_metadata('namespace_packages.txt'):
+        ns = namespaces
+        for part in line.split('.'):
+            ns = ns.setdefault(part, {})
+    return namespaces

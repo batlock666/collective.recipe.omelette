@@ -26,9 +26,10 @@ import logging
 from ConfigParser import ConfigParser
 
 import zc.recipe.egg
-from collective.recipe.omelette.exc import RottenEgg
+from collective.recipe.omelette.exc import IngredientConflict, RottenEgg
 from collective.recipe.omelette.utils import (islink, makedirs, rmitem,
     rmtree, symlink, unlink, WIN32)
+from collective.recipe.omelette.utils import get_namespaces
 
 try:
     from shutil import ignore_patterns
@@ -339,16 +340,56 @@ class FatOmelette(Omelette):
         super(FatOmelette, self).__init__(buildout, name, options)
 
     def _add_ingredient(self, dist):
+        # Check to see if it is a binary distribution.
+        # Note: Binary distributiones (.egg) are being depricated in favor of
+        #   only source distributions.
+        if not os.path.isdir(dist.location):
+            raise RottenEgg(dist)
+
         skillet = self.options['location']
         name_filter = ignore_patterns('*.pyc', '.svn', '.hg*', '.git*')
         top_level = list(dist._get_metadata('top_level.txt'))
         # native_libs = list(dist._get_metadata('native_libs.txt'))
-        dist_name = dist.project_name
+        project_name = dist.project_name
 
-        if not os.path.isdir(dist.location):
-            raise RottenEgg(dist)
-        else:
-            self._build_namespace_tree(dist, name_filter)
+        # Create the namespaces and copy the contents
+        self._build_namespace_tree(dist, name_filter)
+        # Process any top_level items that aren't namespaces
+        namespaces = get_namespaces(dist)
+        for pkg_name in top_level:
+            if pkg_name in namespaces:
+                # These have been processed previously by
+                #   _build_namespace_tree
+                continue
+
+            pkg_location = os.path.join(dist.location, pkg_name)
+            target_location = os.path.join(self.location, pkg_name)
+
+            # Check for single python module
+            if not os.path.exists(pkg_location):
+                name = '.'.join([pkg_name, 'py'])
+                pkg_location = os.path.join(dist.location, name)
+                target_location = os.path.join(self.location, name)
+            # Check for native libs
+            # XXX - this should use native_libs from above
+            if not os.path.exists(pkg_location):
+                name = '.'.join([pkg_name, 'so'])
+                pkg_location = os.path.join(dist.location, name)
+                target_location = os.path.join(self.location, name)
+            if not os.path.exists(pkg_location):
+                name = '.'.join([pkg_name, 'dll'])
+                pkg_location = os.path.join(dist.location, name)
+                target_location = os.path.join(self.location, name)
+            if not os.path.exists(pkg_location):
+                self.logger.warn("Warning: (While processing egg %s) Package "
+                    "'%s' not found.  Skipping." %
+                    (project_name, pkg_name))
+                continue
+
+            if os.path.exists(target_location):
+                raise IngredientConflict(dist, pkg_name)
+            else:
+                self.utensil(pkg_location, target_location)
         return True
 
     def _add_bacon(self, package_dir, target_dir):

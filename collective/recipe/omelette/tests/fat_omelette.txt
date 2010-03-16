@@ -117,6 +117,33 @@ Or ignore all development eggs::
     >>> os.path.exists('parts/omelette/collective')
     False
 
+Packages come in the form of modules, single package directories, namespaces,
+compiled libraries, etc. These all need to be included in the end result::
+
+    >>> write('buildout.cfg',
+    ... """
+    ... [buildout]
+    ... eggs = collective.recipe.omelette
+    ... parts = omelette
+    ...
+    ... [omelette]
+    ... recipe = collective.recipe.omelette:fatty
+    ... eggs = ${buildout:eggs}
+    ... """)
+    >>> print system(buildout + ' -q')
+    >>> ls('parts/omelette')
+    d  collective
+    -  easy_install.py
+    -  pkg_resources.py
+    d  setuptools
+    -  site.py
+    d  zc
+
+And verify that the namespaces for these distributions have been added to the
+metadata file::
+
+    >>> cat('', 'setup.cfg')
+
 The ingredients used to build the omelette are included in the metadata file, with an ingredient measurement (a version number)::
 
     >>> write('buildout.cfg',
