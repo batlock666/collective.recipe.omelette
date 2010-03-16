@@ -99,11 +99,7 @@ class Omelette(object):
 
     def _build_namespace_tree(self, dist, excluder=None):
         """Creates the namespace directory tree struction."""
-        namespaces = {}
-        for line in dist._get_metadata('namespace_packages.txt'):
-            ns = namespaces
-            for part in line.split('.'):
-                ns = ns.setdefault(part, {})
+        namespaces = get_namespaces(dist)
         def create_namespace(pkg_location, namespaces, ns_base=()):
             for k, v in namespaces.iteritems():
                 ns_parts = ns_base + (k,)
@@ -306,11 +302,7 @@ class FluffyOmelette(Omelette):
         for dist in ws.by_key.values():
             project_name =  dist.project_name
             if project_name not in self.ignored_eggs:
-                namespaces = {}
-                for line in dist._get_metadata('namespace_packages.txt'):
-                    ns = namespaces
-                    for part in line.split('.'):
-                        ns = ns.setdefault(part, {})
+                namespaces = get_namespaces(dist)
                 self._crack_shell(dist, namespaces)
                 self._add_seasoning(dist, namespaces)
 
