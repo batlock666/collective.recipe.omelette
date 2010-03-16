@@ -405,10 +405,12 @@ class FatOmelette(Omelette):
 
     def cook(self):
         requirements, ws = self.egg.working_set()
-        # Initialize the ,etadata variables with initial whitespace for
+        # Initialize the metadata variables with initial whitespace for
         #   indention style formating.
-        provides = ['',]
-        requires = ['',]
+        provides = ['']
+        requires = ['']
+        namespaces = ['']
+
         for dist in ws.by_key.values():
             project_name =  dist.project_name
             if project_name not in self.ignored_eggs:
@@ -426,6 +428,9 @@ class FatOmelette(Omelette):
                     #   this package provides it
                     provides.append("%s (%s)" % (
                         dist.project_name, dist.version))
+                # XXX Grabbing at the namespaces dictionary far to often.
+                for ns in dist._get_metadata('namespace_packages.txt'):
+                    namespaces.append(ns)
 
         # Assign the requires and provides metadata
         section = 'metadata'
@@ -435,6 +440,13 @@ class FatOmelette(Omelette):
         provides.sort()
         self.metadata.set(section, 'requires', '\n'.join(requires))
         self.metadata.set(section, 'provides', '\n'.join(provides))
+        # Assign the namespaces metadata
+        section = 'namespaces' # XXX this isn't a valid PEP 390 section
+        if not self.metadata.has_section(section):
+            self.metadata.add_section(section)
+        namespaces = list(set(namespaces)) # duplicate entry removal
+        namespaces.sort()
+        self.metadata.set(section, 'namespaces', '\n'.join(namespaces))
 
         if self.packages:
             self.logger.warn("Warning: Packages and Products are not used "

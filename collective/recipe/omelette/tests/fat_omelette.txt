@@ -143,6 +143,16 @@ And verify that the namespaces for these distributions have been added to the
 metadata file::
 
     >>> cat('', 'setup.cfg')
+    [namespaces]
+    namespaces = 
+    	collective
+    	collective.recipe
+    	zc
+    	zc.recipe
+    <BLANKLINE>
+    ...
+    <BLANKLINE>
+
 
 The ingredients used to build the omelette are included in the metadata file, with an ingredient measurement (a version number)::
 
@@ -159,6 +169,8 @@ The ingredients used to build the omelette are included in the metadata file, wi
     ... """)
     >>> print system(buildout + ' -q')
     >>> cat('', 'setup.cfg')
+    [namespaces]
+    ...
     [metadata]
     requires = 
     provides = 
