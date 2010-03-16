@@ -382,7 +382,7 @@ class FatOmelette(Omelette):
                 try:
                     # Attempt to add a distribution
                     self._add_ingredient(dist)
-                except RottenEgg, err_ob:
+                except RottenEgg as err_ob:
                     # While attempting to add the distribution, we found a
                     #   problem where we can't add the distribution to this
                     #   package, therefore we need to require it
