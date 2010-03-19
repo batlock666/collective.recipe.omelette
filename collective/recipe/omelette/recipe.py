@@ -421,12 +421,12 @@ class FatOmelette(Omelette):
                     # While attempting to add the distribution, we found a
                     #   problem where we can't add the distribution to this
                     #   package, therefore we need to require it
-                    requires.append("%s==%s" % (
+                    requires.append("%s (==%s)" % (
                         err_ob.dist.project_name, err_ob.dist.version))
                 else:
                     # The distribution was successfully added and now
                     #   this package provides it
-                    provides.append("%s (%s)" % (
+                    provides.append("%s (==%s)" % (
                         dist.project_name, dist.version))
                 # XXX Grabbing at the namespaces dictionary far to often.
                 for ns in dist._get_metadata('namespace_packages.txt'):
